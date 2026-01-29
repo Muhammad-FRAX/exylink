@@ -4,7 +4,9 @@ import Home from "./pages/Home.jsx";
 function App() {
   return (
     <>
-      <div>This is The frontend/client part of the application</div>
+      <div className="text-yellow-400">
+        This is The frontend/client part of the application
+      </div>
       <Home />
     </>
   );
