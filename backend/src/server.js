@@ -2,14 +2,16 @@
 // ---------------------- [Imports] ----------------------------------------------------------------
 import express from "express";
 import helmet from "helmet";
-import dotenv from "dotenv";
+import "dotenv/config";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import path from "path";
+import { Sequelize } from "sequelize";
+import multer from "multer";
+import fileRoutes from "./routes/fileRoutes.js";
 
 // -------------------------------------------------------------------------------------------------
 // ---------------------- [Configuration] ----------------------------------------------------------
-dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -64,7 +66,8 @@ app.use(express.urlencoded({ extended: true }));
 // -------------------------------------------------------------------------------------------------
 // ---------------------- [Routes] -----------------------------------------------------------------
 
-app.get("/", (req, res) => {
+app.use("/api/v1/files", fileRoutes);
+app.get("/api", (req, res) => {
   res.send("Frax is Here!");
 });
 
