@@ -32,24 +32,75 @@ class ExcelProcessor {
     let headers = [];
     let rows = [];
 
-    // Simple implementation for extracting data from the worksheet.
-    // Enhanced dynamic parsing can be added for specific cell ranges later.
-    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      const rowValues = row.values
-        .slice(1)
-        .map((val) => this._cleanCellValue(val));
-      if (rowNumber === 1 && options.hasHeaders !== false) {
-        headers = this._normalizeHeaders(rowValues);
-      } else {
-        rows.push(rowValues);
-      }
-    });
+    // Range-based extraction logic
+    if (options.cellRange) {
+      const { startRow, endRow, startCol, endCol } = this._parseRange(
+        options.cellRange
+      );
 
-    if (options.hasHeaders === false) {
+      for (let r = startRow; r <= endRow; r++) {
+        const row = worksheet.getRow(r);
+        const rowValues = [];
+        for (let c = startCol; c <= endCol; c++) {
+          rowValues.push(this._cleanCellValue(row.getCell(c).value));
+        }
+
+        if (r === startRow && options.hasHeaders !== false) {
+          headers = this._normalizeHeaders(rowValues);
+        } else {
+          rows.push(rowValues);
+        }
+      }
+    } else {
+      // Full sheet extraction if no range provided
+      worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+        const rowValues = row.values
+          .slice(1)
+          .map((val) => this._cleanCellValue(val));
+        if (rowNumber === 1 && options.hasHeaders !== false) {
+          headers = this._normalizeHeaders(rowValues);
+        } else {
+          rows.push(rowValues);
+        }
+      });
+    }
+
+    if (options.hasHeaders === false && rows.length > 0) {
       headers = rows[0].map((_, idx) => `column_${idx + 1}`);
     }
 
     return { headers, rows };
+  }
+
+  /**
+   * Internal helper to parse ranges like 'A1:C10' into numeric coordinates.
+   */
+  _parseRange(range) {
+    const parts = range.split(":");
+    if (parts.length !== 2)
+      throw new Error("Invalid Range format. Use 'A1:C10'");
+
+    const decode = (ref) => {
+      const match = ref.match(/([A-Z]+)(\d+)/);
+      if (!match) throw new Error(`Invalid Cell Reference: ${ref}`);
+
+      const colStr = match[1];
+      let col = 0;
+      for (let i = 0; i < colStr.length; i++) {
+        col = col * 26 + (colStr.charCodeAt(i) - 64);
+      }
+      return { row: parseInt(match[2]), col };
+    };
+
+    const start = decode(parts[0]);
+    const end = decode(parts[1]);
+
+    return {
+      startRow: start.row,
+      endRow: end.row,
+      startCol: start.col,
+      endCol: end.col,
+    };
   }
 
   /**

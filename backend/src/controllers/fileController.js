@@ -22,8 +22,21 @@ class FileController {
       const options = {
         sheetName: req.body.sheetName || null,
         cellRange: req.body.cellRange || null,
-        hasHeaders: req.body.hasHeaders !== "false", // Standard practice is truthy unless specified
+        hasHeaders: req.body.hasHeaders !== "false",
         targetTableName: req.body.targetTableName || "imported_excel_data",
+        connectionId: req.body.connectionId || null,
+        // Manual Connection Params
+        manualConfig: req.body.connectionId
+          ? null
+          : {
+              dialect: req.body.dialect,
+              host: req.body.host,
+              port: req.body.port,
+              username: req.body.username,
+              password: req.body.password,
+              databaseName: req.body.databaseName,
+              storagePath: req.body.storagePath,
+            },
       };
 
       // 1. Kick off background processing (Detached from response cycle)

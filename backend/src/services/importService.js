@@ -1,6 +1,6 @@
 import { Sequelize, DataTypes } from "sequelize";
 import { processExcelFile } from "./excelProcessor.js";
-import uploadMiddleware from "./uploadService.js";
+import { DataConnection } from "../models/index.js";
 import fs from "fs/promises";
 
 /**
@@ -9,21 +9,51 @@ import fs from "fs/promises";
  */
 class ImportService {
   /**
-   * Static DB config for local testing.
-   * Based on your local Docker Postgres setup.
+   * Resolve DB config from storage, manual input, or static fallback.
    */
-  getStaticConfig() {
+  async getDBConfig(options = {}) {
+    const { connectionId, manualConfig } = options;
+
+    // 1. Prioritize manual configuration (passed via Manual Entry tab)
+    if (manualConfig && manualConfig.dialect) {
+      return manualConfig.dialect === "sqlite"
+        ? { dialect: "sqlite", storage: manualConfig.storagePath }
+        : {
+            dialect: manualConfig.dialect,
+            host: manualConfig.host,
+            port: manualConfig.port,
+            username: manualConfig.username,
+            password: manualConfig.password,
+            database: manualConfig.databaseName,
+          };
+    }
+
+    // 2. Fallback to stored connection if ID provided
+    if (connectionId) {
+      const conn = await DataConnection.findByPk(connectionId);
+      if (conn) {
+        return conn.dialect === "sqlite"
+          ? { dialect: "sqlite", storage: conn.storage_path }
+          : {
+              dialect: conn.dialect,
+              host: conn.host,
+              port: conn.port,
+              username: conn.username,
+              password: conn.password,
+              database: conn.database_name,
+            };
+      }
+    }
+
+    // 3. Sandbox static config (Emergency fallback)
     return {
       dialect: "postgres",
       host: "localhost",
-      port: 5444, // Using the host port mapped from 5432 in Docker
+      port: 5444, // Docker mapping fallback
       username: "qast",
       password: "Welcome@123",
       database: "QAST-BI",
-      logging: console.log, // Enabled for testing to see SQL queries
-      dialectOptions: {
-        // Necessary for some postgres versions or SSL requirements
-      },
+      logging: false,
     };
   }
 
@@ -35,14 +65,14 @@ class ImportService {
     console.log(`🚀 Starting background processing for: ${filePath}`);
 
     try {
-      // 1. Parsing the file
+      // 1. Parsing the file (Supports sheetName, cellRange, hasHeaders)
       const { headers, rows } = await processExcelFile(filePath, options);
       console.log(
         `📊 Extracted ${rows.length} rows with ${headers.length} headers.`
       );
 
       // 2. Establishing connection to target database
-      const config = this.getStaticConfig();
+      const config = await this.getDBConfig(options);
       const targetSequelize = new Sequelize(config);
 
       try {

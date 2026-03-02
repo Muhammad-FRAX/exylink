@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home.jsx";
 import DataConnections from "./pages/DataConnections.jsx";
+import Tables from "./pages/Tables.jsx";
 import Sidebar from "./components/Sidebar";
 
 function App() {
@@ -12,6 +13,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/connections" element={<DataConnections />} />
+            <Route path="/tables" element={<Tables />} />
           </Routes>
         </div>
       </div>

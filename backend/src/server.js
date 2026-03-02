@@ -9,6 +9,9 @@ import path from "path";
 import { Sequelize } from "sequelize";
 import multer from "multer";
 import fileRoutes from "./routes/fileRoutes.js";
+import dataConnectionRoutes from "./routes/dataConnectionRoutes.js";
+import tableConnectionRoutes from "./routes/tableConnectionRoutes.js";
+import { sequelize } from "./models/index.js";
 
 // -------------------------------------------------------------------------------------------------
 // ---------------------- [Configuration] ----------------------------------------------------------
@@ -67,6 +70,8 @@ app.use(express.urlencoded({ extended: true }));
 // ---------------------- [Routes] -----------------------------------------------------------------
 
 app.use("/api/v1/files", fileRoutes);
+app.use("/api/v1/connections", dataConnectionRoutes);
+app.use("/api/v1/table-mappings", tableConnectionRoutes);
 app.get("/api", (req, res) => {
   res.send("Frax is Here!");
 });
@@ -95,8 +100,22 @@ app.use((err, req, res, next) => {
   });
 });
 
-// -------------------------------------------------------------------------------------------------
-// ---------------------- [Server Start] -----------------------------------------------------------
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+// Initialize Database and Start Server
+const initApp = async () => {
+  try {
+    // 1. Sync Application Database (SQLite)
+    // Synchronize the 'data_connections' table
+    await sequelize.sync({ force: false });
+    console.log("✅ Main Database Synced Successfully");
+
+    // 2. Start Server
+    app.listen(PORT, () => {
+      console.log(`🚀 Server is running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("❌ Failed to Start Application:", error.message);
+    process.exit(1);
+  }
+};
+
+initApp();
