@@ -1,14 +1,61 @@
-import { processExcelFile } from "../services/excelProcessor.js";
-import uploadService from "../services/uploadService.js";
-import { Sequelize } from "sequelize";
-import crypto from "crypto";
+import importService from "../services/importService.js";
+import uploadMiddleware from "../services/uploadService.js";
 
-const uploadFile = (req, res) => {
-  try {
-    res.status(200).json({ message: "File uploaded successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Internal server error" });
+/**
+ * Main Controller for file management endpoints.
+ */
+class FileController {
+  /**
+   * Orchestrates the Excel file upload and processing.
+   * Returns an immediate status code (202 - Accepted) to the client.
+   * Actual processing runs as a detached background operation.
+   */
+  async createFileImport(req, res) {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "Missing required file" });
+      }
+
+      console.log(`📥 Received upload: ${req.file.originalname}`);
+
+      // Extract metadata from request body
+      const options = {
+        sheetName: req.body.sheetName || null,
+        cellRange: req.body.cellRange || null,
+        hasHeaders: req.body.hasHeaders !== "false", // Standard practice is truthy unless specified
+        targetTableName: req.body.targetTableName || "imported_excel_data",
+      };
+
+      // 1. Kick off background processing (Detached from response cycle)
+      // This allows the user to continue using the app while the file is processed.
+      importService
+        .processJob(req.file.path, options)
+        .then(() =>
+          console.log(
+            `✅ Background processing for ${req.file.originalname} successful.`
+          )
+        )
+        .catch((err) =>
+          console.error(
+            `❌ Background processing for ${req.file.originalname} failed: ${err.message}`
+          )
+        );
+
+      // 2. Immediate response back to the client
+      res.status(202).json({
+        success: true,
+        message: "File accepted for processing.",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error(
+        `❌ Controller handling error for ${req.file?.originalname}: ${error.message}`
+      );
+      res
+        .status(500)
+        .json({ error: "Job creation failed", details: error.message });
+    }
   }
-};
+}
 
-export { uploadFile };
+export default new FileController();
