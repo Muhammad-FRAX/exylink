@@ -49,7 +49,7 @@ class ImportService {
     return {
       dialect: "postgres",
       host: "localhost",
-      port: 5444, // Docker mapping fallback
+      port: 5444,
       username: "qast",
       password: "Welcome@123",
       database: "QAST-BI",
@@ -62,72 +62,69 @@ class ImportService {
    * Runs independently of the request-response cycle.
    */
   async processJob(filePath, options = {}) {
-    console.log(`🚀 Starting background processing for: ${filePath}`);
+    console.log(`Starting background processing for: ${filePath}`);
 
     try {
-      // 1. Parsing the file (Supports sheetName, cellRange, hasHeaders)
+      // 1. Parse the file
       const { headers, rows } = await processExcelFile(filePath, options);
-      console.log(
-        `📊 Extracted ${rows.length} rows with ${headers.length} headers.`
-      );
+      console.log(`Extracted ${rows.length} rows with ${headers.length} headers.`);
 
-      // 2. Establishing connection to target database
+      // 2. Connect to target database
       const config = await this.getDBConfig(options);
-      const targetSequelize = new Sequelize(config);
+      const targetSequelize = new Sequelize({ ...config, logging: false });
 
       try {
         await targetSequelize.authenticate();
-        console.log("🔗 Connected to target database.");
+        console.log("Connected to target database.");
 
-        // 3. Dynamically defining the model
-        const attributes = {};
-        headers.forEach((header) => {
-          attributes[header] = {
-            type: DataTypes.TEXT, // Start with TEXT for maximum compatibility
-            allowNull: true,
-            primaryKey: header.toLowerCase() === "id", // Fix for Sequelize's requirement
-          };
-        });
-
+        const qi = targetSequelize.getQueryInterface();
         const targetTable = options.targetTableName || "imported_data";
-        const DynamicModel = targetSequelize.define(targetTable, attributes, {
-          freezeTableName: true,
-          timestamps: false, // Disable timestamps to avoid column-not-found on existing tables
-        });
 
-        // 4. Syncing the table (creating if absent)
-        // force: false ensures we don't delete existing data
-        await DynamicModel.sync({ force: options.recreateTable === true });
-        console.log(`📝 Synced table: ${targetTable}`);
+        // 3. Create the table if it does not exist yet.
+        //    We never ALTER existing tables so pre-existing schemas are preserved.
+        const existingTables = await qi.showAllTables();
+        const tableExists = existingTables
+          .map((t) => (typeof t === "string" ? t : t.tableName ?? t))
+          .includes(targetTable);
 
-        // 5. Bulk creating records in chunks for production stability
+        if (!tableExists) {
+          const columnDefs = {};
+          headers.forEach((header) => {
+            columnDefs[header] = { type: DataTypes.TEXT, allowNull: true };
+          });
+          await qi.createTable(targetTable, columnDefs);
+          console.log(`Created table: ${targetTable}`);
+        } else {
+          console.log(`Table exists, inserting into: ${targetTable}`);
+        }
+
+        // 4. Bulk insert via queryInterface — no Sequelize model needed,
+        //    so there are no PK/RETURNING column conflicts with existing tables.
         const CHUNK_SIZE = 500;
         for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-          const chunk = rows.slice(i, i + CHUNK_SIZE);
-          const records = chunk.map((row) => {
+          const records = rows.slice(i, i + CHUNK_SIZE).map((row) => {
             const obj = {};
             headers.forEach((header, idx) => {
-              obj[header] = row[idx] !== undefined ? row[idx] : null;
+              obj[header] = row[idx] !== undefined ? String(row[idx]) : null;
             });
             return obj;
           });
-          await DynamicModel.bulkCreate(records);
+          await qi.bulkInsert(targetTable, records);
         }
 
-        console.log(`✅ Successfully injected ${rows.length} rows.`);
+        console.log(`Successfully injected ${rows.length} rows.`);
       } catch (dbError) {
-        console.error("❌ Database injection error:", dbError.message);
+        console.error("Database injection error:", dbError.message);
         throw dbError;
       } finally {
         await targetSequelize.close();
       }
 
-      // 6. Cleanup after successful processing
+      // 5. Cleanup temporary file
       await fs.unlink(filePath);
-      console.log("🧹 Cleaned up temporary file.");
+      console.log("Cleaned up temporary file.");
     } catch (error) {
-      console.error("❌ background process failed:", error.message);
-      // Here we would ideally update an 'ImportJob' record status to 'FAILED'
+      console.error("Background process failed:", error.message);
     }
   }
 }

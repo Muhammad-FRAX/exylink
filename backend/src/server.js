@@ -6,12 +6,13 @@ import "dotenv/config";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import path from "path";
-import { Sequelize } from "sequelize";
-import multer from "multer";
+import bcrypt from "bcryptjs";
 import fileRoutes from "./routes/fileRoutes.js";
 import dataConnectionRoutes from "./routes/dataConnectionRoutes.js";
 import tableConnectionRoutes from "./routes/tableConnectionRoutes.js";
-import { sequelize } from "./models/index.js";
+import authRoutes from "./routes/authRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
+import { sequelize, User } from "./models/index.js";
 
 // -------------------------------------------------------------------------------------------------
 // ---------------------- [Configuration] ----------------------------------------------------------
@@ -25,8 +26,8 @@ app.use(helmet());
 
 // Global Rate Limiter
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limiting each IP to 100 requests per 15 minutes per Window
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -38,8 +39,8 @@ const globalLimiter = rateLimit({
 
 // Auth Rate Limiter
 const authLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 5, // Limiting each IP to 5 requests per window
+  windowMs: 1 * 60 * 1000,
+  max: 5,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -57,8 +58,8 @@ app.use("/api/auth", authLimiter);
 // ---------------------- [Core Middleware] --------------------------------------------------------
 
 // Request Logging
-app.use((req, res, next) => {
-  console.log(` ${req.method} ${req.path} - ${new Date().toISOString()}`);
+app.use((req, _res, next) => {
+  console.log(`${req.method} ${req.path} - ${new Date().toISOString()}`);
   next();
 });
 
@@ -69,11 +70,14 @@ app.use(express.urlencoded({ extended: true }));
 // -------------------------------------------------------------------------------------------------
 // ---------------------- [Routes] -----------------------------------------------------------------
 
+app.use("/api/auth", authRoutes);
 app.use("/api/v1/files", fileRoutes);
 app.use("/api/v1/connections", dataConnectionRoutes);
 app.use("/api/v1/table-mappings", tableConnectionRoutes);
+app.use("/api/v1/users", userRoutes);
+
 app.get("/api", (req, res) => {
-  res.send("Frax is Here!");
+  res.send("Exylink API");
 });
 
 // Serving frontend files (Production only)
@@ -81,15 +85,15 @@ if (process.env.NODE_ENV && process.env.NODE_ENV === "production") {
   const FrontendEntryPointPath = path.join(__dirname, "..", "dist");
   app.use(express.static(FrontendEntryPointPath));
 
-  // Handle all other routes by serving the index.html file
-  app.get("*", (req, res) => {
+  app.get("*", (_req, res) => {
     res.sendFile(path.join(FrontendEntryPointPath, "index.html"));
   });
 }
 
 // -------------------------------------------------------------------------------------------------
 // ---------------------- [Error Handling] ---------------------------------------------------------
-app.use((err, req, res, next) => {
+// eslint-disable-next-line no-unused-vars
+app.use((err, _req, res, _next) => {
   console.error("Error:", err.stack);
   res.status(500).json({
     error: "Something went wrong!",
@@ -100,20 +104,40 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Initialize Database and Start Server
+// -------------------------------------------------------------------------------------------------
+// ---------------------- [Startup] ----------------------------------------------------------------
+
+/**
+ * Seeds the default admin user if one does not already exist.
+ */
+async function seedAdminUser() {
+  const existing = await User.findOne({ where: { username: "admin" } });
+  if (existing) return;
+
+  const hashed = await bcrypt.hash("Welcome@123", 12);
+  await User.create({
+    username: "admin",
+    email: "admin@exylink.com",
+    password: hashed,
+    role: "admin",
+    is_active: true,
+  });
+  console.log("Default admin user created. Username: admin | Password: Welcome@123");
+}
+
 const initApp = async () => {
   try {
-    // 1. Sync Application Database (SQLite)
-    // Synchronize the 'data_connections' table
-    await sequelize.sync({ force: false });
-    console.log("✅ Main Database Synced Successfully");
+    // Sync all models — alter: true adds new columns without dropping existing data
+    await sequelize.sync({ alter: true });
+    console.log("Main database synced successfully.");
 
-    // 2. Start Server
+    await seedAdminUser();
+
     app.listen(PORT, () => {
-      console.log(`🚀 Server is running on port ${PORT}`);
+      console.log(`Server is running on port ${PORT}`);
     });
   } catch (error) {
-    console.error("❌ Failed to Start Application:", error.message);
+    console.error("Failed to start application:", error.message);
     process.exit(1);
   }
 };

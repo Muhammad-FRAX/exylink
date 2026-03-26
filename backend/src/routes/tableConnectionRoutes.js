@@ -1,24 +1,13 @@
 import express from "express";
 import tableConnectionController from "../controllers/tableConnectionController.js";
+import { authenticate } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Get all mappings
-router.get(
-  "/",
-  tableConnectionController.getAll.bind(tableConnectionController)
-);
+router.use(authenticate);
 
-// Create mapping
-router.post(
-  "/",
-  tableConnectionController.create.bind(tableConnectionController)
-);
-
-// Delete mapping
-router.delete(
-  "/:id",
-  tableConnectionController.delete.bind(tableConnectionController)
-);
+router.get("/", tableConnectionController.getAll.bind(tableConnectionController));
+router.post("/", tableConnectionController.create.bind(tableConnectionController));
+router.delete("/:id", tableConnectionController.delete.bind(tableConnectionController));
 
 export default router;

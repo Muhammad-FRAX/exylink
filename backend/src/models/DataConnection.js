@@ -9,6 +9,14 @@ const DataConnection = sequelize.define(
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
+    user_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: "users",
+        key: "id",
+      },
+    },
     name: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -30,7 +38,7 @@ const DataConnection = sequelize.define(
       allowNull: true,
     },
     password: {
-      type: DataTypes.STRING, // Should be encrypted in production
+      type: DataTypes.STRING,
       allowNull: true,
     },
     database_name: {
@@ -38,7 +46,7 @@ const DataConnection = sequelize.define(
       allowNull: true,
     },
     storage_path: {
-      type: DataTypes.STRING, // For SQLite only
+      type: DataTypes.STRING,
       allowNull: true,
     },
     is_active: {

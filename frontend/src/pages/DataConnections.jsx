@@ -8,22 +8,23 @@ import {
   Loader2,
   X,
   Edit3,
-  Power,
   Zap,
-  Clock,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import axios from "axios";
+import api from "../services/api.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
-const API_BASE = "http://localhost:5000/api/v1/connections";
+const API_BASE = "/api/v1/connections";
 
 export default function DataConnections() {
-  const [connections, setConnections] = useState([]);
+  const { user } = useAuth();
+  const [own, setOwn] = useState([]);
+  const [others, setOthers] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState(null); // { success: bool, message: string }
+  const [testResult, setTestResult] = useState(null);
   const [editId, setEditId] = useState(null);
 
   const [formData, setFormData] = useState({
@@ -43,8 +44,9 @@ export default function DataConnections() {
 
   const fetchConnections = async () => {
     try {
-      const { data } = await axios.get(API_BASE);
-      setConnections(data);
+      const { data } = await api.get(API_BASE);
+      setOwn(data.own || []);
+      setOthers(data.others || []);
     } catch (err) {
       console.error("Fetch connections failed", err);
     } finally {
@@ -86,7 +88,7 @@ export default function DataConnections() {
     setTesting(true);
     setTestResult(null);
     try {
-      const { data } = await axios.post(`${API_BASE}/test`, formData);
+      const { data } = await api.post(`${API_BASE}/test`, formData);
       setTestResult({ success: true, message: data.message });
     } catch (err) {
       setTestResult({
@@ -103,9 +105,9 @@ export default function DataConnections() {
     setIsSaving(true);
     try {
       if (editId) {
-        await axios.put(`${API_BASE}/${editId}`, formData);
+        await api.put(`${API_BASE}/${editId}`, formData);
       } else {
-        await axios.post(API_BASE, formData);
+        await api.post(API_BASE, formData);
       }
       await fetchConnections();
       setShowForm(false);
@@ -119,12 +121,61 @@ export default function DataConnections() {
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this connection?")) return;
     try {
-      await axios.delete(`${API_BASE}/${id}`);
-      setConnections(connections.filter((c) => c.id !== id));
+      await api.delete(`${API_BASE}/${id}`);
+      await fetchConnections();
     } catch (err) {
       console.error("Delete failed", err);
     }
   };
+
+  const ConnectionCard = ({ conn, showOwner = false }) => (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0 }}
+      className="group bg-white border border-gray-100 p-6 rounded-4xl shadow-sm hover:shadow-xl hover:shadow-emerald-500/5 transition-all duration-500 relative overflow-hidden"
+    >
+      <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50/50 rounded-bl-[4rem] group-hover:scale-110 transition-transform duration-700" />
+      <div className="relative z-10 flex items-start gap-5">
+        <div className="p-4 bg-emerald-50 rounded-2xl shrink-0">
+          <Database className="w-7 h-7 text-emerald-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h3 className="text-xl font-bold text-gray-900">{conn.name}</h3>
+            <span className="px-2 py-0.5 bg-gray-50 text-gray-400 text-[9px] uppercase font-black rounded-lg tracking-wider border border-gray-100">
+              {conn.dialect}
+            </span>
+          </div>
+          <p className="text-sm font-medium text-gray-400 font-mono truncate max-w-[200px]">
+            {conn.dialect === "sqlite"
+              ? conn.storage_path
+              : `${conn.host}:${conn.port}`}
+          </p>
+          {showOwner && conn.owner && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              by <span className="font-bold">{conn.owner.username}</span>
+            </p>
+          )}
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={() => handleOpenForm(conn)}
+              className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+            >
+              <Edit3 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleDelete(conn.id)}
+              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
 
   return (
     <div className="min-h-screen p-8 lg:p-12 animate-in fade-in duration-700">
@@ -137,7 +188,7 @@ export default function DataConnections() {
               className="text-4xl font-black text-gray-900 tracking-tight"
             >
               Data{" "}
-              <span className="bg-linear-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
                 Connections
               </span>
             </motion.h1>
@@ -160,62 +211,56 @@ export default function DataConnections() {
             <Loader2 className="w-12 h-12 animate-spin mb-4" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <AnimatePresence>
-              {connections.map((conn) => (
-                <motion.div
-                  key={conn.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="group bg-white border border-gray-100 p-6 rounded-4xl shadow-sm hover:shadow-xl hover:shadow-emerald-500/5 transition-all duration-500 relative overflow-hidden"
-                >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50/50 rounded-bl-[4rem] group-hover:scale-110 transition-transform duration-700" />
-                  <div className="relative z-10 flex items-start gap-5">
-                    <div className="p-4 bg-emerald-50 rounded-2xl">
-                      <Database className="w-7 h-7 text-emerald-600" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-xl font-bold text-gray-900">
-                          {conn.name}
-                        </h3>
-                        <span className="px-2 py-0.5 bg-gray-50 text-gray-400 text-[9px] uppercase font-black rounded-lg tracking-wider border border-gray-100">
-                          {conn.dialect}
-                        </span>
-                      </div>
-                      <p className="text-sm font-medium text-gray-400 font-mono truncate max-w-[200px]">
-                        {conn.dialect === "sqlite"
-                          ? conn.storage_path
-                          : `${conn.host}:${conn.port}`}
-                      </p>
-                      <div className="mt-4 flex gap-2">
-                        <button
-                          onClick={() => handleOpenForm(conn)}
-                          className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(conn.id)}
-                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+          <div className="space-y-10">
+            {/* Own connections */}
+            <section>
+              {user?.role === "admin" && (
+                <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-5 ml-1">
+                  My Connections
+                </h2>
+              )}
+              {own.length === 0 ? (
+                <p className="text-gray-400 text-sm font-medium">
+                  No connections yet. Add one above.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <AnimatePresence>
+                    {own.map((conn) => (
+                      <ConnectionCard key={conn.id} conn={conn} />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
+            </section>
+
+            {/* Other users' connections (admin only) */}
+            {user?.role === "admin" && others.length > 0 && (
+              <section>
+                <div className="flex items-center gap-3 mb-5">
+                  <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                    All Users' Connections
+                  </h2>
+                  <span className="px-2 py-0.5 bg-gray-100 text-gray-400 text-[9px] font-black rounded-lg tracking-wider">
+                    {others.length}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <AnimatePresence>
+                    {others.map((conn) => (
+                      <ConnectionCard key={conn.id} conn={conn} showOwner />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </section>
+            )}
           </div>
         )}
 
         {/* Modal Form */}
         <AnimatePresence>
           {showForm && (
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-md z-100 flex items-center justify-center p-6">
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-md z-[100] flex items-center justify-center p-6">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -316,10 +361,7 @@ export default function DataConnections() {
                           placeholder="Username"
                           value={formData.username}
                           onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              username: e.target.value,
-                            })
+                            setFormData({ ...formData, username: e.target.value })
                           }
                           className="w-full px-5 py-4 bg-gray-50 rounded-2xl border-none outline-none font-bold text-sm"
                         />
@@ -328,10 +370,7 @@ export default function DataConnections() {
                           placeholder="Password"
                           value={formData.password}
                           onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              password: e.target.value,
-                            })
+                            setFormData({ ...formData, password: e.target.value })
                           }
                           className="w-full px-5 py-4 bg-gray-50 rounded-2xl border-none outline-none font-bold text-sm"
                         />
@@ -342,10 +381,7 @@ export default function DataConnections() {
                           placeholder="Database Name"
                           value={formData.database_name}
                           onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              database_name: e.target.value,
-                            })
+                            setFormData({ ...formData, database_name: e.target.value })
                           }
                           className="w-full px-5 py-4 bg-gray-50 rounded-2xl border-none outline-none font-bold text-sm"
                         />
@@ -358,10 +394,7 @@ export default function DataConnections() {
                         placeholder="Path to .sqlite file"
                         value={formData.storage_path}
                         onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            storage_path: e.target.value,
-                          })
+                          setFormData({ ...formData, storage_path: e.target.value })
                         }
                         className="w-full px-5 py-4 bg-gray-50 rounded-2xl border-none outline-none font-bold text-sm"
                       />

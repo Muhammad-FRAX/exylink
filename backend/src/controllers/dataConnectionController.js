@@ -1,47 +1,68 @@
-import { DataConnection } from "../models/index.js";
-import { Sequelize } from "sequelize";
+import { DataConnection, User } from "../models/index.js";
+import { Sequelize, Op } from "sequelize";
 
 /**
  * Controller for managing database connections.
+ * Non-admin users see only their own connections.
+ * Admins see their own connections first, then all other users' connections.
  */
 class DataConnectionController {
   /**
-   * Get all database connections.
+   * Get connections scoped to the requesting user.
+   * Admins receive { own: [...], others: [...] }.
+   * Visitors receive { own: [...], others: [] }.
    */
   async getAll(req, res) {
     try {
-      const connections = await DataConnection.findAll({
+      const own = await DataConnection.findAll({
+        where: { user_id: req.user.id },
         order: [["created_at", "DESC"]],
       });
-      res.json(connections);
+
+      let others = [];
+      if (req.user.role === "admin") {
+        others = await DataConnection.findAll({
+          where: { user_id: { [Op.ne]: req.user.id } },
+          include: [{ model: User, as: "owner", attributes: ["username"] }],
+          order: [["created_at", "DESC"]],
+        });
+      }
+
+      res.json({ own, others });
     } catch (error) {
-      console.error("❌ Failed to fetch connections:", error.message);
+      console.error("Failed to fetch connections:", error.message);
       res.status(500).json({ error: "Failed to fetch connections" });
     }
   }
 
   /**
-   * Create a new database connection.
+   * Create a new database connection owned by the requesting user.
    */
   async create(req, res) {
     try {
-      const connection = await DataConnection.create(req.body);
+      const connection = await DataConnection.create({
+        ...req.body,
+        user_id: req.user.id,
+      });
       res.status(201).json(connection);
     } catch (error) {
-      console.error("❌ Failed to create connection:", error.message);
+      console.error("Failed to create connection:", error.message);
       res.status(500).json({ error: "Failed to create connection" });
     }
   }
 
   /**
-   * Update an existing connection.
+   * Update a connection. Users can only update their own; admins can update any.
    */
   async update(req, res) {
     try {
       const { id } = req.params;
-      const [updated] = await DataConnection.update(req.body, {
-        where: { id },
-      });
+      const where =
+        req.user.role === "admin"
+          ? { id }
+          : { id, user_id: req.user.id };
+
+      const [updated] = await DataConnection.update(req.body, { where });
 
       if (updated) {
         const updatedConnection = await DataConnection.findByPk(id);
@@ -49,18 +70,23 @@ class DataConnectionController {
       }
       return res.status(404).json({ error: "Connection not found" });
     } catch (error) {
-      console.error("❌ Failed to update connection:", error.message);
+      console.error("Failed to update connection:", error.message);
       res.status(500).json({ error: "Failed to update connection" });
     }
   }
 
   /**
-   * Delete a database connection.
+   * Delete a connection. Users can only delete their own; admins can delete any.
    */
   async delete(req, res) {
     try {
       const { id } = req.params;
-      const deletedCount = await DataConnection.destroy({ where: { id } });
+      const where =
+        req.user.role === "admin"
+          ? { id }
+          : { id, user_id: req.user.id };
+
+      const deletedCount = await DataConnection.destroy({ where });
 
       if (deletedCount === 0) {
         return res.status(404).json({ error: "Connection not found" });
@@ -68,7 +94,7 @@ class DataConnectionController {
 
       res.json({ message: "Connection deleted successfully" });
     } catch (error) {
-      console.error("❌ Failed to delete connection:", error.message);
+      console.error("Failed to delete connection:", error.message);
       res.status(500).json({ error: "Failed to delete connection" });
     }
   }
@@ -100,7 +126,7 @@ class DataConnectionController {
               database: database_name,
             };
 
-      const tempSequelize = new Sequelize(config);
+      const tempSequelize = new Sequelize({ ...config, logging: false });
       await tempSequelize.authenticate();
       await tempSequelize.close();
 

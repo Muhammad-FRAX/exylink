@@ -8,13 +8,12 @@ import {
   ArrowRight,
   Loader2,
   Settings2,
-  Info,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import axios from "axios";
+import api from "../services/api.js";
 
-const API_BASE_URL = "http://localhost:5000/api/v1/files";
-const API_MAPPINGS = "http://localhost:5000/api/v1/table-mappings";
+const API_FILES = "/api/v1/files";
+const API_MAPPINGS = "/api/v1/table-mappings";
 
 export default function Home() {
   const [file, setFile] = useState(null);
@@ -46,8 +45,9 @@ export default function Home() {
 
   const fetchMappings = async () => {
     try {
-      const { data } = await axios.get(API_MAPPINGS);
-      setMappings(data);
+      const { data } = await api.get(API_MAPPINGS);
+      // Only own mappings are shown as presets
+      setMappings(data.own || []);
     } catch (err) {
       console.error("Failed to fetch presets", err);
     }
@@ -97,7 +97,6 @@ export default function Home() {
         formData.append("connectionId", map.connection_id);
       }
     } else {
-      // Manual mode sends raw connection details
       formData.append("dialect", dialect);
       formData.append("host", host);
       formData.append("port", port);
@@ -108,7 +107,7 @@ export default function Home() {
     }
 
     try {
-      await axios.post(API_BASE_URL, formData, {
+      await api.post(API_FILES, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setStatus("success");
@@ -142,7 +141,7 @@ export default function Home() {
           {/* Left: Upload Zone */}
           <div className="lg:col-span-6 space-y-6">
             <label
-              className={`relative flex flex-col items-center justify-center h-full min-h-[400px] border-2 border-dashed rounded-4xl cursor-pointer transition-all duration-300 group ${
+              className={`relative flex flex-col items-center justify-center h-full min-h-100 border-2 border-dashed rounded-4xl cursor-pointer transition-all duration-300 group ${
                 file
                   ? "border-emerald-500/50 bg-emerald-50/30"
                   : "border-gray-200 hover:border-emerald-400 hover:bg-emerald-50/20"
@@ -183,7 +182,7 @@ export default function Home() {
                     <p className="text-2xl font-black text-gray-900">
                       Select Spreadsheet
                     </p>
-                    <p className="text-sm text-gray-400 mt-2 max-w-[200px]">
+                    <p className="text-sm text-gray-400 mt-2 max-w-50">
                       Drop your Excel or CSV file here to start the process.
                     </p>
                   </div>
@@ -223,7 +222,7 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="flex-1 space-y-6 overflow-y-auto max-h-[600px] pr-2 custom-scrollbar">
+            <div className="flex-1 space-y-6 overflow-y-auto max-h-150 pr-2 custom-scrollbar">
               {activeTab === "preset" ? (
                 <div className="space-y-6">
                   <div>
@@ -378,7 +377,7 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Status Logic */}
+              {/* Status */}
               <AnimatePresence>
                 {status !== "idle" && (
                   <motion.div
@@ -423,7 +422,7 @@ export default function Home() {
                     status === "uploading"
                   }
                   onClick={handleUpload}
-                  className="w-full bg-black text-white py-5 rounded-[2rem] font-black flex items-center justify-center gap-3 hover:bg-emerald-600 transition-all shadow-xl hover:shadow-emerald-500/20 active:scale-95 disabled:opacity-20"
+                  className="w-full bg-black text-white py-5 rounded-4xl font-black flex items-center justify-center gap-3 hover:bg-emerald-600 transition-all shadow-xl hover:shadow-emerald-500/20 active:scale-95 disabled:opacity-20"
                 >
                   START INGESTION
                   <ArrowRight className="w-5 h-5" />

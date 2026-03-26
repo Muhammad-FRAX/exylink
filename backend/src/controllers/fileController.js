@@ -16,7 +16,7 @@ class FileController {
         return res.status(400).json({ error: "Missing required file" });
       }
 
-      console.log(`📥 Received upload: ${req.file.originalname}`);
+      console.log(`Received upload: ${req.file.originalname}`);
 
       // Extract metadata from request body
       const options = {
@@ -40,17 +40,16 @@ class FileController {
       };
 
       // 1. Kick off background processing (Detached from response cycle)
-      // This allows the user to continue using the app while the file is processed.
       importService
         .processJob(req.file.path, options)
         .then(() =>
           console.log(
-            `✅ Background processing for ${req.file.originalname} successful.`
+            `Background processing for ${req.file.originalname} successful.`
           )
         )
         .catch((err) =>
           console.error(
-            `❌ Background processing for ${req.file.originalname} failed: ${err.message}`
+            `Background processing for ${req.file.originalname} failed: ${err.message}`
           )
         );
 
@@ -62,7 +61,7 @@ class FileController {
       });
     } catch (error) {
       console.error(
-        `❌ Controller handling error for ${req.file?.originalname}: ${error.message}`
+        `Controller handling error for ${req.file?.originalname}: ${error.message}`
       );
       res
         .status(500)

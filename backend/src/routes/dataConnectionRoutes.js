@@ -1,33 +1,15 @@
 import express from "express";
 import dataConnectionController from "../controllers/dataConnectionController.js";
+import { authenticate } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Get all connections
+router.use(authenticate);
+
 router.get("/", dataConnectionController.getAll.bind(dataConnectionController));
-
-// Create connection
-router.post(
-  "/",
-  dataConnectionController.create.bind(dataConnectionController)
-);
-
-// Update connection
-router.put(
-  "/:id",
-  dataConnectionController.update.bind(dataConnectionController)
-);
-
-// Delete connection
-router.delete(
-  "/:id",
-  dataConnectionController.delete.bind(dataConnectionController)
-);
-
-// Test connection without saving
-router.post(
-  "/test",
-  dataConnectionController.testConnection.bind(dataConnectionController)
-);
+router.post("/", dataConnectionController.create.bind(dataConnectionController));
+router.put("/:id", dataConnectionController.update.bind(dataConnectionController));
+router.delete("/:id", dataConnectionController.delete.bind(dataConnectionController));
+router.post("/test", dataConnectionController.testConnection.bind(dataConnectionController));
 
 export default router;

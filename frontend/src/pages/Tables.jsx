@@ -1,25 +1,24 @@
 import { useState, useEffect } from "react";
 import {
   Plus,
-  Table as TableIcon,
   Trash2,
   Database,
-  Search,
   Layout,
-  Settings2,
   Loader2,
   X,
   ArrowRight,
-  CheckCircle2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import axios from "axios";
+import api from "../services/api.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
-const API_MAPPINGS = "http://localhost:5000/api/v1/table-mappings";
-const API_CONNECTIONS = "http://localhost:5000/api/v1/connections";
+const API_MAPPINGS = "/api/v1/table-mappings";
+const API_CONNECTIONS = "/api/v1/connections";
 
 export default function Tables() {
-  const [mappings, setMappings] = useState([]);
+  const { user } = useAuth();
+  const [own, setOwn] = useState([]);
+  const [others, setOthers] = useState([]);
   const [connections, setConnections] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -41,11 +40,13 @@ export default function Tables() {
   const fetchData = async () => {
     try {
       const [maps, conns] = await Promise.all([
-        axios.get(API_MAPPINGS),
-        axios.get(API_CONNECTIONS),
+        api.get(API_MAPPINGS),
+        api.get(API_CONNECTIONS),
       ]);
-      setMappings(maps.data);
-      setConnections(conns.data);
+      setOwn(maps.data.own || []);
+      setOthers(maps.data.others || []);
+      // Connections dropdown only shows own connections
+      setConnections(conns.data.own || []);
     } catch (err) {
       console.error("Fetch error", err);
     } finally {
@@ -57,7 +58,7 @@ export default function Tables() {
     e.preventDefault();
     setSaving(true);
     try {
-      await axios.post(API_MAPPINGS, formData);
+      await api.post(API_MAPPINGS, formData);
       await fetchData();
       setShowForm(false);
       setFormData({
@@ -78,12 +79,60 @@ export default function Tables() {
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this table mapping?")) return;
     try {
-      await axios.delete(`${API_MAPPINGS}/${id}`);
-      setMappings(mappings.filter((m) => m.id !== id));
+      await api.delete(`${API_MAPPINGS}/${id}`);
+      await fetchData();
     } catch (err) {
       console.error("Delete error", err);
     }
   };
+
+  const MappingCard = ({ map, showOwner = false }) => (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className="bg-white border border-gray-100 p-6 rounded-4xl shadow-sm hover:shadow-xl hover:shadow-emerald-500/5 transition-all duration-500"
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="p-3 bg-emerald-50 rounded-2xl">
+          <Layout className="w-6 h-6 text-emerald-600" />
+        </div>
+        <button
+          onClick={() => handleDelete(map.id)}
+          className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+        >
+          <Trash2 className="w-5 h-5" />
+        </button>
+      </div>
+
+      <h3 className="text-xl font-bold text-gray-900 mb-1">{map.name}</h3>
+      <div className="flex items-center gap-1.5 mb-4 text-xs font-black uppercase tracking-widest text-emerald-600/60">
+        <Database className="w-3.5 h-3.5" />
+        {map.connection?.name || "Disconnected"}
+      </div>
+      {showOwner && map.owner && (
+        <p className="text-xs text-gray-400 mb-3">
+          by <span className="font-bold">{map.owner.username}</span>
+        </p>
+      )}
+
+      <div className="space-y-3 pt-4 border-t border-gray-50">
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-400">Target Table</span>
+          <span className="font-bold text-gray-700">{map.target_table_name}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-400">Sheet</span>
+          <span className="font-bold text-gray-700">{map.sheet_name || "Auto"}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-400">Range</span>
+          <span className="font-bold text-gray-700">{map.cell_range || "Full"}</span>
+        </div>
+      </div>
+    </motion.div>
+  );
 
   return (
     <div className="min-h-screen p-8 lg:p-12 animate-in fade-in duration-700">
@@ -96,7 +145,7 @@ export default function Tables() {
               className="text-4xl font-black text-gray-900 tracking-tight"
             >
               Table{" "}
-              <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
+              <span className="bg-linear-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
                 Configurations
               </span>
             </motion.h1>
@@ -126,67 +175,56 @@ export default function Tables() {
             <Loader2 className="w-12 h-12 animate-spin mb-4" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            <AnimatePresence>
-              {mappings.map((map) => (
-                <motion.div
-                  key={map.id}
-                  layout
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="bg-white border border-gray-100 p-6 rounded-[2rem] shadow-sm hover:shadow-xl hover:shadow-emerald-500/5 transition-all duration-500"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="p-3 bg-emerald-50 rounded-2xl">
-                      <Layout className="w-6 h-6 text-emerald-600" />
-                    </div>
-                    <button
-                      onClick={() => handleDelete(map.id)}
-                      className="p-2 text-gray-300 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </div>
+          <div className="space-y-10">
+            {/* Own mappings */}
+            <section>
+              {user?.role === "admin" && (
+                <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-5 ml-1">
+                  My Configurations
+                </h2>
+              )}
+              {own.length === 0 ? (
+                <p className="text-gray-400 text-sm font-medium">
+                  No configurations yet. Create one above.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  <AnimatePresence>
+                    {own.map((map) => (
+                      <MappingCard key={map.id} map={map} />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
+            </section>
 
-                  <h3 className="text-xl font-bold text-gray-900 mb-1">
-                    {map.name}
-                  </h3>
-                  <div className="flex items-center gap-1.5 mb-4 text-xs font-black uppercase tracking-widest text-emerald-600/60">
-                    <Database className="w-3.5 h-3.5" />
-                    {map.connection?.name || "Disconnected"}
-                  </div>
-
-                  <div className="space-y-3 pt-4 border-t border-gray-50">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Target Table</span>
-                      <span className="font-bold text-gray-700">
-                        {map.target_table_name}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Sheet</span>
-                      <span className="font-bold text-gray-700">
-                        {map.sheet_name || "Auto"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Range</span>
-                      <span className="font-bold text-gray-700">
-                        {map.cell_range || "Full"}
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+            {/* Other users' mappings (admin only) */}
+            {user?.role === "admin" && others.length > 0 && (
+              <section>
+                <div className="flex items-center gap-3 mb-5">
+                  <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                    All Users' Configurations
+                  </h2>
+                  <span className="px-2 py-0.5 bg-gray-100 text-gray-400 text-[9px] font-black rounded-lg tracking-wider">
+                    {others.length}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  <AnimatePresence>
+                    {others.map((map) => (
+                      <MappingCard key={map.id} map={map} showOwner />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </section>
+            )}
           </div>
         )}
 
         {/* Modal Form */}
         <AnimatePresence>
           {showForm && (
-            <div className="fixed inset-0 bg-black/30 backdrop-blur-md z-[100] flex items-center justify-center p-6">
+            <div className="fixed inset-0 bg-black/30 backdrop-blur-md z-100 flex items-center justify-center p-6">
               <motion.div
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -204,7 +242,7 @@ export default function Tables() {
                   </div>
                   <button
                     onClick={() => setShowForm(false)}
-                    className="X p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                   >
                     <X className="w-6 h-6 text-gray-400" />
                   </button>
@@ -239,10 +277,7 @@ export default function Tables() {
                       className="w-full px-5 py-3.5 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-400/20 focus:bg-white transition-all appearance-none cursor-pointer text-black"
                       value={formData.connection_id}
                       onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          connection_id: e.target.value,
-                        })
+                        setFormData({ ...formData, connection_id: e.target.value })
                       }
                     >
                       <option value="">Select Connection</option>
@@ -265,10 +300,7 @@ export default function Tables() {
                       className="w-full px-5 py-3.5 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-400/20 focus:bg-white transition-all text-black"
                       value={formData.target_table_name}
                       onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          target_table_name: e.target.value,
-                        })
+                        setFormData({ ...formData, target_table_name: e.target.value })
                       }
                     />
                   </div>
@@ -309,10 +341,7 @@ export default function Tables() {
                       className="w-5 h-5 accent-emerald-600 rounded"
                       checked={formData.has_headers}
                       onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          has_headers: e.target.checked,
-                        })
+                        setFormData({ ...formData, has_headers: e.target.checked })
                       }
                     />
                     <span className="text-sm font-bold text-emerald-800">
@@ -326,9 +355,14 @@ export default function Tables() {
                       disabled={saving}
                       className="w-full bg-black text-white py-4 rounded-3xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-600 transition-all active:scale-95 disabled:opacity-30"
                     >
-                      {saving
-                        ? "Establishing Mapping..."
-                        : "Create Configuration Entry"}
+                      {saving ? (
+                        "Establishing Mapping..."
+                      ) : (
+                        <>
+                          Create Configuration Entry
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
