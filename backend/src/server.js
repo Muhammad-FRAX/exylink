@@ -76,7 +76,7 @@ app.use("/api/v1/connections", dataConnectionRoutes);
 app.use("/api/v1/table-mappings", tableConnectionRoutes);
 app.use("/api/v1/users", userRoutes);
 
-app.get("/api", (req, res) => {
+app.get("/api", (_req, res) => {
   res.send("Exylink API");
 });
 
@@ -128,7 +128,7 @@ async function seedAdminUser() {
 const initApp = async () => {
   try {
     // Sync all models — alter: true adds new columns without dropping existing data
-    await sequelize.sync({ alter: true });
+    await sequelize.sync({ force: false });
     console.log("Main database synced successfully.");
 
     await seedAdminUser();

@@ -8,6 +8,7 @@ import {
   ArrowRight,
   Loader2,
   Settings2,
+  AlertTriangle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api.js";
@@ -15,18 +16,20 @@ import api from "../services/api.js";
 const API_FILES = "/api/v1/files";
 const API_MAPPINGS = "/api/v1/table-mappings";
 
+// status machine:
+// idle → checking → staged (duplicates found) → processing → success | error
+//                 ↘ processing (no duplicates, auto-proceed)
+
 export default function Home() {
   const [file, setFile] = useState(null);
   const [mappings, setMappings] = useState([]);
   const [selectedMappingId, setSelectedMappingId] = useState("");
 
-  // Dynamic fields (Table Config)
   const [targetTable, setTargetTable] = useState("");
   const [sheetName, setSheetName] = useState("");
   const [cellRange, setCellRange] = useState("");
   const [hasHeaders, setHasHeaders] = useState(true);
 
-  // Manual Connection fields
   const [dialect, setDialect] = useState("postgres");
   const [host, setHost] = useState("");
   const [port, setPort] = useState("");
@@ -35,9 +38,14 @@ export default function Home() {
   const [databaseName, setDatabaseName] = useState("");
   const [storagePath, setStoragePath] = useState("");
 
+  // idle | checking | staged | processing | success | error
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const [activeTab, setActiveTab] = useState("preset"); // preset | manual
+  const [activeTab, setActiveTab] = useState("preset");
+
+  // Pre-flight data returned from staging
+  // { jobId, totalRows, newRows, updates, exactDuplicates }
+  const [preflight, setPreflight] = useState(null);
 
   useEffect(() => {
     fetchMappings();
@@ -46,7 +54,6 @@ export default function Home() {
   const fetchMappings = async () => {
     try {
       const { data } = await api.get(API_MAPPINGS);
-      // Only own mappings are shown as presets
       setMappings(data.own || []);
     } catch (err) {
       console.error("Failed to fetch presets", err);
@@ -57,6 +64,8 @@ export default function Home() {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
       setFile(selectedFile);
+      setStatus("idle");
+      setPreflight(null);
       if (activeTab === "manual" && !targetTable) {
         setTargetTable(
           selectedFile.name
@@ -79,11 +88,7 @@ export default function Home() {
     }
   };
 
-  const handleUpload = async (e) => {
-    e.preventDefault();
-    if (!file || !targetTable) return;
-
-    setStatus("uploading");
+  const buildFormData = () => {
     const formData = new FormData();
     formData.append("excelFile", file);
     formData.append("targetTableName", targetTable);
@@ -91,11 +96,9 @@ export default function Home() {
     formData.append("cellRange", cellRange);
     formData.append("hasHeaders", hasHeaders);
 
-    if (activeTab === "preset") {
-      if (selectedMappingId) {
-        const map = mappings.find((m) => m.id === selectedMappingId);
-        formData.append("connectionId", map.connection_id);
-      }
+    if (activeTab === "preset" && selectedMappingId) {
+      const map = mappings.find((m) => m.id === selectedMappingId);
+      formData.append("connectionId", map.connection_id);
     } else {
       formData.append("dialect", dialect);
       formData.append("host", host);
@@ -105,17 +108,68 @@ export default function Home() {
       formData.append("databaseName", databaseName);
       formData.append("storagePath", storagePath);
     }
+    return formData;
+  };
+
+  // Step 1 — Upload and stage (detect duplicates)
+  const handleUpload = async (e) => {
+    e.preventDefault();
+    if (!file || !targetTable) return;
+
+    setStatus("checking");
+    setErrorMsg("");
+    setPreflight(null);
 
     try {
-      await api.post(API_FILES, formData, {
+      const { data } = await api.post(API_FILES, buildFormData(), {
         headers: { "Content-Type": "multipart/form-data" },
       });
+
+      // data: { jobId, totalRows, newRows, updates, exactDuplicates }
+      if (data.updates === 0 && data.exactDuplicates === 0) {
+        // No conflicts — auto-confirm without prompting
+        await handleConfirm(data.jobId);
+      } else {
+        setPreflight(data);
+        setStatus("staged");
+      }
+    } catch (err) {
+      setStatus("error");
+      setErrorMsg(err.response?.data?.details || err.response?.data?.error || "Failed to analyse file.");
+    }
+  };
+
+  // Step 2a — User confirmed: run background insertion
+  const handleConfirm = async (jobId) => {
+    const id = jobId ?? preflight?.jobId;
+    if (!id) return;
+
+    setStatus("processing");
+    setPreflight(null);
+
+    try {
+      await api.post(`${API_FILES}/${id}/confirm`);
       setStatus("success");
     } catch (err) {
       setStatus("error");
       setErrorMsg(err.response?.data?.error || "Ingestion failed.");
     }
   };
+
+  // Step 2b — User cancelled: discard the job
+  const handleCancel = async () => {
+    if (preflight?.jobId) {
+      try {
+        await api.delete(`${API_FILES}/${preflight.jobId}`);
+      } catch {
+        // Best-effort cancel
+      }
+    }
+    setPreflight(null);
+    setStatus("idle");
+  };
+
+  const isBusy = status === "checking" || status === "processing";
 
   return (
     <div className="min-h-screen p-8 lg:p-12 animate-in fade-in duration-700">
@@ -168,6 +222,8 @@ export default function Home() {
                       onClick={(e) => {
                         e.preventDefault();
                         setFile(null);
+                        setStatus("idle");
+                        setPreflight(null);
                       }}
                       className="mt-8 px-6 py-2 bg-white border border-gray-100 rounded-xl text-red-500 font-bold text-xs hover:bg-red-50 transition-all shadow-sm"
                     >
@@ -197,7 +253,7 @@ export default function Home() {
             </label>
           </div>
 
-          {/* Right: Configuration Box */}
+          {/* Right: Configuration */}
           <div className="lg:col-span-6 flex flex-col">
             <div className="flex bg-gray-50 p-1.5 rounded-3xl mb-8">
               <button
@@ -269,7 +325,6 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
-                  {/* Table Details Section */}
                   <div className="space-y-4">
                     <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2 ml-1">
                       <FileSpreadsheet className="w-3 h-3" /> Ingestion Target
@@ -301,12 +356,10 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Database Details Section */}
                   <div className="space-y-4 pt-4 border-t border-gray-100">
                     <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-4 flex items-center gap-2 ml-1">
                       <Database className="w-3 h-3" /> Database Credentials
                     </h4>
-
                     <div className="grid grid-cols-2 gap-4">
                       <div className="col-span-2">
                         <select
@@ -320,56 +373,19 @@ export default function Home() {
                           <option value="mssql">SQL Server</option>
                         </select>
                       </div>
-
                       {dialect !== "sqlite" ? (
                         <>
-                          <input
-                            type="text"
-                            placeholder="Host"
-                            value={host}
-                            onChange={(e) => setHost(e.target.value)}
-                            className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-sm"
-                          />
-                          <input
-                            type="number"
-                            placeholder="Port"
-                            value={port}
-                            onChange={(e) => setPort(e.target.value)}
-                            className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-sm"
-                          />
-                          <input
-                            type="text"
-                            placeholder="Username"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-sm"
-                          />
-                          <input
-                            type="password"
-                            placeholder="Password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-sm"
-                          />
+                          <input type="text" placeholder="Host" value={host} onChange={(e) => setHost(e.target.value)} className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-sm" />
+                          <input type="number" placeholder="Port" value={port} onChange={(e) => setPort(e.target.value)} className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-sm" />
+                          <input type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-sm" />
+                          <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-sm" />
                           <div className="col-span-2">
-                            <input
-                              type="text"
-                              placeholder="Database Name"
-                              value={databaseName}
-                              onChange={(e) => setDatabaseName(e.target.value)}
-                              className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-sm"
-                            />
+                            <input type="text" placeholder="Database Name" value={databaseName} onChange={(e) => setDatabaseName(e.target.value)} className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-sm" />
                           </div>
                         </>
                       ) : (
                         <div className="col-span-2">
-                          <input
-                            type="text"
-                            placeholder="SQLite Path (e.g. ./data/db.sqlite)"
-                            value={storagePath}
-                            onChange={(e) => setStoragePath(e.target.value)}
-                            className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-sm"
-                          />
+                          <input type="text" placeholder="SQLite Path (e.g. ./data/db.sqlite)" value={storagePath} onChange={(e) => setStoragePath(e.target.value)} className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none font-bold text-sm" />
                         </div>
                       )}
                     </div>
@@ -377,12 +393,13 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Status */}
+              {/* Status indicator */}
               <AnimatePresence>
-                {status !== "idle" && (
+                {status !== "idle" && status !== "staged" && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
                     className={`p-5 rounded-3xl border shadow-sm ${
                       status === "success"
                         ? "bg-emerald-50 border-emerald-100"
@@ -392,18 +409,20 @@ export default function Home() {
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      {status === "uploading" && (
-                        <Loader2 className="w-5 h-5 text-emerald-600 animate-spin" />
+                      {(status === "checking" || status === "processing") && (
+                        <Loader2 className="w-5 h-5 text-emerald-600 animate-spin shrink-0" />
                       )}
                       {status === "success" && (
-                        <CheckCircle className="w-5 h-5 text-emerald-600" />
+                        <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
                       )}
                       {status === "error" && (
-                        <XCircle className="w-5 h-5 text-red-600" />
+                        <XCircle className="w-5 h-5 text-red-600 shrink-0" />
                       )}
                       <span className="text-xs font-bold text-gray-700">
-                        {status === "uploading"
-                          ? "Connecting & Injecting..."
+                        {status === "checking"
+                          ? "Analysing file and checking for duplicates..."
+                          : status === "processing"
+                          ? "Ingesting data in the background..."
                           : status === "success"
                           ? "Data successfully ingested!"
                           : errorMsg}
@@ -419,19 +438,114 @@ export default function Home() {
                     !file ||
                     (activeTab === "preset" && !selectedMappingId) ||
                     (activeTab === "manual" && !targetTable) ||
-                    status === "uploading"
+                    isBusy ||
+                    status === "staged"
                   }
                   onClick={handleUpload}
                   className="w-full bg-black text-white py-5 rounded-4xl font-black flex items-center justify-center gap-3 hover:bg-emerald-600 transition-all shadow-xl hover:shadow-emerald-500/20 active:scale-95 disabled:opacity-20"
                 >
-                  START INGESTION
-                  <ArrowRight className="w-5 h-5" />
+                  {isBusy ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <ArrowRight className="w-5 h-5" />
+                  )}
+                  {isBusy ? "WORKING..." : "START INGESTION"}
                 </button>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Duplicate confirmation modal */}
+      <AnimatePresence>
+        {status === "staged" && preflight && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-md z-100 flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 16 }}
+              className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-8 lg:p-10"
+            >
+              {/* Icon */}
+              <div className="flex justify-center mb-6">
+                <div className="p-4 bg-amber-50 rounded-3xl">
+                  <AlertTriangle className="w-10 h-10 text-amber-500" />
+                </div>
+              </div>
+
+              {/* Message */}
+              <h2 className="text-xl font-black text-gray-900 text-center tracking-tight mb-3">
+                Review Before Ingesting
+              </h2>
+
+              {preflight.newRows === 0 && preflight.updates === 0 ? (
+                <p className="text-sm font-bold text-red-500 text-center mb-8">
+                  All rows already exist in the database. Nothing to ingest.
+                </p>
+              ) : (
+                <p className="text-sm text-gray-500 text-center leading-relaxed mb-8">
+                  Conflicts were found. Review what will happen and confirm to proceed.
+                </p>
+              )}
+
+              {/* Row breakdown */}
+              <div className="grid grid-cols-2 gap-3 mb-8">
+                <div className="bg-gray-50 rounded-2xl p-4 text-center">
+                  <p className="text-2xl font-black text-gray-900">
+                    {preflight.totalRows}
+                  </p>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">
+                    Total Rows
+                  </p>
+                </div>
+                <div className="bg-emerald-50 rounded-2xl p-4 text-center">
+                  <p className="text-2xl font-black text-emerald-600">
+                    {preflight.newRows}
+                  </p>
+                  <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mt-1">
+                    To Insert
+                  </p>
+                </div>
+                <div className="bg-amber-50 rounded-2xl p-4 text-center">
+                  <p className="text-2xl font-black text-amber-600">
+                    {preflight.updates}
+                  </p>
+                  <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mt-1">
+                    To Overwrite
+                  </p>
+                </div>
+                <div className="bg-red-50 rounded-2xl p-4 text-center">
+                  <p className="text-2xl font-black text-red-500">
+                    {preflight.exactDuplicates}
+                  </p>
+                  <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mt-1">
+                    To Skip
+                  </p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCancel}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-4 rounded-3xl font-black text-xs tracking-widest uppercase transition-all"
+                >
+                  No, Cancel
+                </button>
+                {(preflight.newRows > 0 || preflight.updates > 0) && (
+                  <button
+                    onClick={() => handleConfirm()}
+                    className="flex-1 bg-black hover:bg-emerald-600 text-white py-4 rounded-3xl font-black text-xs tracking-widest uppercase transition-all shadow-xl"
+                  >
+                    Yes, Proceed
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

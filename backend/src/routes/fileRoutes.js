@@ -5,16 +5,26 @@ import { authenticate } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-/**
- * Route: POST /api/v1/files
- * Purpose: Upload and process Excel/CSV files into a database.
- * Middleware: Authentication, then Multer disk storage for temporary hold.
- */
+// POST /api/v1/files — upload + stage (parse + duplicate detection)
 router.post(
   "/",
   authenticate,
   uploadMiddleware.single("excelFile"),
-  fileController.createFileImport.bind(fileController)
+  fileController.stageFileImport.bind(fileController)
+);
+
+// POST /api/v1/files/:jobId/confirm — user confirmed, start background insertion
+router.post(
+  "/:jobId/confirm",
+  authenticate,
+  fileController.confirmFileImport.bind(fileController)
+);
+
+// DELETE /api/v1/files/:jobId — user cancelled, discard the staged job
+router.delete(
+  "/:jobId",
+  authenticate,
+  fileController.cancelFileImport.bind(fileController)
 );
 
 export default router;
