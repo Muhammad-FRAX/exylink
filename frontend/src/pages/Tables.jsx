@@ -7,6 +7,8 @@ import {
   Loader2,
   X,
   ArrowRight,
+  Copy,
+  Check,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../services/api.js";
@@ -23,6 +25,17 @@ export default function Tables() {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [copiedId, setCopiedId] = useState(null);
+
+  const copyPresetId = async (id) => {
+    try {
+      await navigator.clipboard.writeText(id);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {
+      // fallback: do nothing
+    }
+  };
 
   const [formData, setFormData] = useState({
     name: "",
@@ -129,6 +142,31 @@ export default function Tables() {
         <div className="flex justify-between text-sm">
           <span className="text-gray-400">Range</span>
           <span className="font-bold text-gray-700">{map.cell_range || "Full"}</span>
+        </div>
+
+        {/* Preset ID — for API automation */}
+        <div className="pt-2 border-t border-gray-50">
+          <div className="flex items-center justify-between gap-2 bg-gray-50 rounded-2xl px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">
+                Preset ID
+              </p>
+              <code className="text-[11px] font-bold text-gray-500 truncate block">
+                {map.id}
+              </code>
+            </div>
+            <button
+              onClick={() => copyPresetId(map.id)}
+              className="shrink-0 p-2 rounded-xl hover:bg-gray-100 transition-colors"
+              title="Copy preset ID"
+            >
+              {copiedId === map.id ? (
+                <Check className="w-3.5 h-3.5 text-emerald-500" />
+              ) : (
+                <Copy className="w-3.5 h-3.5 text-gray-400" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </motion.div>

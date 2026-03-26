@@ -12,6 +12,8 @@ import dataConnectionRoutes from "./routes/dataConnectionRoutes.js";
 import tableConnectionRoutes from "./routes/tableConnectionRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
+import apiKeyRoutes from "./routes/apiKeyRoutes.js";
+import ingestRoutes from "./routes/ingestRoutes.js";
 import { sequelize, User } from "./models/index.js";
 
 // -------------------------------------------------------------------------------------------------
@@ -75,6 +77,8 @@ app.use("/api/v1/files", fileRoutes);
 app.use("/api/v1/connections", dataConnectionRoutes);
 app.use("/api/v1/table-mappings", tableConnectionRoutes);
 app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/api-keys", apiKeyRoutes);
+app.use("/api/external/ingest", ingestRoutes);
 
 app.get("/api", (_req, res) => {
   res.send("Exylink API");

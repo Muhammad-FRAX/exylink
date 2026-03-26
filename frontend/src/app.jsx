@@ -4,6 +4,7 @@ import Home from "./pages/Home.jsx";
 import DataConnections from "./pages/DataConnections.jsx";
 import Tables from "./pages/Tables.jsx";
 import Users from "./pages/Users.jsx";
+import ApiKeys from "./pages/ApiKeys.jsx";
 import Login from "./pages/Login.jsx";
 import Sidebar from "./components/Sidebar";
 
@@ -43,6 +44,7 @@ function AppLayout() {
           <Route path="/connections" element={<ProtectedRoute><DataConnections /></ProtectedRoute>} />
           <Route path="/tables" element={<ProtectedRoute><Tables /></ProtectedRoute>} />
           <Route path="/users" element={<AdminRoute><Users /></AdminRoute>} />
+          <Route path="/api-keys" element={<ProtectedRoute><ApiKeys /></ProtectedRoute>} />
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

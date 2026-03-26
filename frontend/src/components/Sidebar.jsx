@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Database, LogOut, Layout, Users } from "lucide-react";
+import { LayoutDashboard, Database, LogOut, Layout, Users, KeyRound } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/exylink-logo.png";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -17,6 +17,7 @@ export default function Sidebar() {
     { name: "Home", path: "/", icon: LayoutDashboard },
     { name: "Data Connections", path: "/connections", icon: Database },
     { name: "Table Configs", path: "/tables", icon: Layout },
+    { name: "API Keys", path: "/api-keys", icon: KeyRound },
   ];
 
   const adminNavItems = [
