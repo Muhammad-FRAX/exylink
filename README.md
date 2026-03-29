@@ -101,6 +101,24 @@ The SQLite database is stored in a Docker volume (`exylink-data`). Your data sur
 
 ---
 
+## Production (Non-docker)
+
+Use this method if you want to run the app directly on a server (without docker).In this case you would need to set up an environment variable:
+
+```
+ENV NODE_ENV=production
+```
+
+or
+
+```
+NODE_ENV=production node src/server.js  //when running the server
+```
+
+Since this variable is only set automatically in the Dockerfile, and you need to apply it so the app can function in production mode and serve the frontend files as intented with the express server.
+
+---
+
 ## How to Use
 
 ### Step 1 — Create a Database Connection
