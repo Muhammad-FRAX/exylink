@@ -361,5 +361,5 @@ Built by **Mohamed Ali (Frax)**.
 
 Found a bug? Have a feature idea? Want to contribute?
 
-- GitHub: [@Frax](https://github.com/Frax404NF)
+- GitHub: [@Frax](https://github.com/Muhammad-FRAX)
 - Open an issue or pull request on this repository — all feedback and contributions are welcome.
