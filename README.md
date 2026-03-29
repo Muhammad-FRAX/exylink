@@ -6,7 +6,7 @@ What makes it special: It's lightweight and works fully headless. Use curl comma
 
 Currently Supports **PostgreSQL**, **MySQL**, **SQLite**, and **SQL Server**.
 
----
+## **Enjoy!**
 
 ## Architecture
 
