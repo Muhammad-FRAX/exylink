@@ -58,8 +58,9 @@ class TableConnectionController {
    */
   async create(req, res) {
     try {
+      const { name, connection_id, target_table_name, sheet_name, cell_range, has_headers } = req.body;
       const connection = await TableConnection.create({
-        ...req.body,
+        name, connection_id, target_table_name, sheet_name, cell_range, has_headers,
         user_id: req.user.id,
       });
       res.status(201).json(connection);

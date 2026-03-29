@@ -104,14 +104,9 @@ class ImportService {
       }
     }
 
-    return {
-      dialect: "postgres",
-      host: "localhost",
-      port: 5444,
-      username: "qast",
-      password: "Welcome@123",
-      database: "QAST-BI",
-    };
+    throw new Error(
+      "No database connection provided. Supply a connectionId or manual connection parameters."
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -129,9 +124,21 @@ class ImportService {
    * Returns a lightweight descriptor that the frontend uses to decide whether
    * to prompt the user.
    */
+  /**
+   * Validates that a table name is safe for use in SQL queries.
+   */
+  _validateTableName(name) {
+    if (!name || !/^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/.test(name)) {
+      throw new Error(
+        `Invalid table name "${name}". Use only letters, digits, and underscores (max 64 chars).`
+      );
+    }
+  }
+
   async stageJob(filePath, options = {}) {
     const { headers, rows } = await processExcelFile(filePath, options);
     const targetTable = options.targetTableName || "imported_data";
+    this._validateTableName(targetTable);
 
     let newRows = [...rows];
     let upsertRows = [];
@@ -246,12 +253,20 @@ class ImportService {
         `${exactDuplicates.length} exact duplicates`
     );
 
+    // Build duplicate rows as objects for frontend display (cap at 200 for response size)
+    const MAX_DUPLICATE_PREVIEW = 200;
+    const duplicatePreview = exactDuplicates
+      .slice(0, MAX_DUPLICATE_PREVIEW)
+      .map((row) => this._rowToRecord(headers, row));
+
     return {
       jobId,
       totalRows: rows.length,
       newRows: newRows.length,
       updates: upsertRows.length,
       exactDuplicates: exactDuplicates.length,
+      duplicateRows: duplicatePreview,
+      headers,
     };
   }
 

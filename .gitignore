@@ -1,4 +1,13 @@
 # =======================================
+# ⚙️ Project-specific exclusions
+# =======================================
+mistakes.md
+dev-context.md
+.claude/
+backend/src/database/
+temp_uploads/
+
+# =======================================
 # ⚙️ Node & Environment Files
 # =======================================
 node_modules/

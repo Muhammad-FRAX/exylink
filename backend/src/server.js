@@ -6,6 +6,7 @@ import "dotenv/config";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import path from "path";
+import { fileURLToPath } from "url";
 import bcrypt from "bcryptjs";
 import fileRoutes from "./routes/fileRoutes.js";
 import dataConnectionRoutes from "./routes/dataConnectionRoutes.js";
@@ -16,6 +17,9 @@ import apiKeyRoutes from "./routes/apiKeyRoutes.js";
 import ingestRoutes from "./routes/ingestRoutes.js";
 import { sequelize, User } from "./models/index.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // -------------------------------------------------------------------------------------------------
 // ---------------------- [Configuration] ----------------------------------------------------------
 const app = express();
@@ -23,7 +27,11 @@ const PORT = process.env.PORT || 5000;
 
 // -------------------------------------------------------------------------------------------------
 // ---------------------- [Security Middleware] ----------------------------------------------------
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+  })
+);
 app.use(helmet());
 
 // Global Rate Limiter
@@ -52,7 +60,21 @@ const authLimiter = rateLimit({
   },
 });
 
+// External API Rate Limiter (higher limit for automation)
+const externalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 429,
+    error:
+      "Too many API requests from this source, please try again after 15 minutes",
+  },
+});
+
 // Apply Limiters
+app.use("/api/external", externalLimiter);
 app.use(globalLimiter);
 app.use("/api/auth", authLimiter);
 
@@ -82,6 +104,10 @@ app.use("/api/external/ingest", ingestRoutes);
 
 app.get("/api", (_req, res) => {
   res.send("Exylink API");
+});
+
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // Serving frontend files (Production only)

@@ -465,7 +465,7 @@ export default function Home() {
               initial={{ opacity: 0, scale: 0.92, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 16 }}
-              className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-8 lg:p-10"
+              className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl p-8 lg:p-10"
             >
               {/* Icon */}
               <div className="flex justify-center mb-6">
@@ -490,7 +490,7 @@ export default function Home() {
               )}
 
               {/* Row breakdown */}
-              <div className="grid grid-cols-2 gap-3 mb-8">
+              <div className="grid grid-cols-2 gap-3 mb-6">
                 <div className="bg-gray-50 rounded-2xl p-4 text-center">
                   <p className="text-2xl font-black text-gray-900">
                     {preflight.totalRows}
@@ -524,6 +524,44 @@ export default function Home() {
                   </p>
                 </div>
               </div>
+
+              {/* Duplicate rows table */}
+              {preflight.duplicateRows && preflight.duplicateRows.length > 0 && (
+                <div className="mb-6">
+                  <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-2 ml-1">
+                    Duplicate Rows (not processed)
+                  </p>
+                  <div className="max-h-48 overflow-auto rounded-2xl border border-red-100 bg-red-50/30">
+                    <table className="w-full text-[11px]">
+                      <thead className="sticky top-0 bg-red-50">
+                        <tr>
+                          {preflight.headers.map((h) => (
+                            <th key={h} className="px-3 py-2 text-left font-black text-red-500 uppercase tracking-wider whitespace-nowrap">
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {preflight.duplicateRows.map((row, i) => (
+                          <tr key={i} className="border-t border-red-100/50">
+                            {preflight.headers.map((h) => (
+                              <td key={h} className="px-3 py-1.5 text-gray-600 whitespace-nowrap max-w-[150px] truncate">
+                                {row[h] ?? ""}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {preflight.exactDuplicates > preflight.duplicateRows.length && (
+                    <p className="text-[10px] text-gray-400 mt-1 ml-1">
+                      Showing {preflight.duplicateRows.length} of {preflight.exactDuplicates} duplicates
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex gap-3">

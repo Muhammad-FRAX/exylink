@@ -40,8 +40,9 @@ class DataConnectionController {
    */
   async create(req, res) {
     try {
+      const { name, dialect, host, port, username, password, database_name, storage_path } = req.body;
       const connection = await DataConnection.create({
-        ...req.body,
+        name, dialect, host, port, username, password, database_name, storage_path,
         user_id: req.user.id,
       });
       res.status(201).json(connection);
@@ -62,7 +63,11 @@ class DataConnectionController {
           ? { id }
           : { id, user_id: req.user.id };
 
-      const [updated] = await DataConnection.update(req.body, { where });
+      const { name, dialect, host, port, username, password, database_name, storage_path, is_active } = req.body;
+      const [updated] = await DataConnection.update(
+        { name, dialect, host, port, username, password, database_name, storage_path, is_active },
+        { where }
+      );
 
       if (updated) {
         const updatedConnection = await DataConnection.findByPk(id);
