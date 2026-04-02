@@ -86,6 +86,11 @@ docker compose up --build -d
 
 The app is available at `http://localhost:5000`.
 
+```
+Remember: if you want to test the app with a local database you have to use "host.docker.internal" instead
+of "localhost" in the Host input, since localhost here refers to what is inside the container while the later resolves to your actual localhost device.
+```
+
 ### 2. Persistent data
 
 The SQLite database is stored in a Docker volume (`exylink-data`). Your data survives container restarts and rebuilds.
