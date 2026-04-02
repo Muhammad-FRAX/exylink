@@ -115,7 +115,7 @@ if (process.env.NODE_ENV && process.env.NODE_ENV === "production") {
   const FrontendEntryPointPath = path.join(__dirname, "..", "dist");
   app.use(express.static(FrontendEntryPointPath));
 
-  app.get("*", (_req, res) => {
+  app.get("/{*splat}", (_req, res) => {
     res.sendFile(path.join(FrontendEntryPointPath, "index.html"));
   });
 }
