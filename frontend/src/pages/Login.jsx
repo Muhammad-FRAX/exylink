@@ -64,10 +64,10 @@ export default function Login() {
                 required
                 type="text"
                 autoComplete="username"
-                placeholder="admin"
+                placeholder="Enter your username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-5 py-4 bg-gray-50 rounded-2xl focus:bg-white focus:ring-2 focus:ring-emerald-400/20 outline-none font-bold transition-all border-none"
+                className="w-full px-5 py-4 bg-gray-50 rounded-2xl focus:bg-white focus:ring-2 focus:ring-emerald-400/20 outline-none font-bold transition-all border-none placeholder:text-gray-300 placeholder:font-normal"
               />
             </div>
 
@@ -80,10 +80,10 @@ export default function Login() {
                   required
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-5 py-4 bg-gray-50 rounded-2xl focus:bg-white focus:ring-2 focus:ring-emerald-400/20 outline-none font-bold transition-all border-none pr-14"
+                  className="w-full px-5 py-4 bg-gray-50 rounded-2xl focus:bg-white focus:ring-2 focus:ring-emerald-400/20 outline-none font-bold transition-all border-none pr-14 placeholder:text-gray-300 placeholder:font-normal"
                 />
                 <button
                   type="button"
