@@ -144,7 +144,7 @@ async function seedAdminUser() {
   const existing = await User.findOne({ where: { username: "admin" } });
   if (existing) return;
 
-  const hashed = await bcrypt.hash("Welcome@123", 12);
+  const hashed = await bcrypt.hash("admin", 12);
   await User.create({
     username: "admin",
     email: "admin@exylink.com",
@@ -152,7 +152,7 @@ async function seedAdminUser() {
     role: "admin",
     is_active: true,
   });
-  console.log("Default admin user created. Username: admin | Password: Welcome@123");
+  console.log("Default admin user created. Username: admin | Password: admin");
 }
 
 const initApp = async () => {

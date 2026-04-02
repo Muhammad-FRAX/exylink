@@ -4,7 +4,7 @@
 mistakes.md
 dev-context.md
 .claude/
-backend/src/database/
+backend/src/database/*.sqlite
 temp_uploads/
 
 # =======================================
