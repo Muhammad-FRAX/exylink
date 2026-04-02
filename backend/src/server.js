@@ -153,6 +153,7 @@ async function seedAdminUser() {
     is_active: true,
   });
   console.log("Default admin user created. Username: admin | Password: admin");
+  console.log("Kindly update it in Users after logging in.");
 }
 
 const initApp = async () => {
